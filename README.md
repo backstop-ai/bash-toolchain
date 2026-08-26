@@ -7,7 +7,7 @@ The pack intentionally contains no coding-standard or substantiveness rules.
 
 ## Development
 
-This repository requires Backstop CLI v0.3.0.
+This repository requires Backstop CLI v0.3.1.
 
 ```sh
 backstop pack test

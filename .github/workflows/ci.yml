@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 env:
-  BACKSTOP_VERSION: 0.3.0
-  CORE_COMMIT: 24fc1c8a85f6ead7d2d5a08424fc984636b5938b
+  BACKSTOP_VERSION: 0.3.1
+  CORE_COMMIT: 7dd4ecde45abf6edd5149e476b2847feb7bd276c
 
 jobs:
   acceptance:
