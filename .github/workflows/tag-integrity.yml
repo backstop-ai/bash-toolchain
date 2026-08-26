@@ -6,7 +6,7 @@ on:
       release_tag:
         description: Immutable Bash pack tag to create after green prepublication acceptance
         required: true
-        default: v0.1.0
+        default: v0.1.1
 
 permissions:
   contents: write
