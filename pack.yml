@@ -1,14 +1,15 @@
 name: backstop-ai/bash-toolchain
-version: "0.1.1"
+version: "0.1.2"
 language: bash
 archetype: enforcement
 description: >
   Bash mechanism pack for static test-function discovery and exactly-once
-  execution of a repository's canonical verifier.
+  execution of the repository's supported canonical verifiers.
 classification:
   test:
     - "scripts/tests/**/*.sh"
     - "scripts/verify-public-product-model.sh"
+    - "scripts/verify-documentation-semantics-integration.sh"
 test_name_patterns:
   - "^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[[:blank:]]*\\([[:blank:]]*\\)[[:blank:]]*\\{"
   - "^[[:space:]]*function[[:blank:]]+([A-Za-z_][A-Za-z0-9_]*)[[:blank:]]*\\([[:blank:]]*\\)[[:blank:]]*\\{"
@@ -31,6 +32,17 @@ engines:
     exempt_from_scope_filter: true
     category: mechanism
     gate_type: test
+  bash-documentation-semantics-test:
+    command: bash scripts/verify-documentation-semantics-integration.sh
+    producer: scripts/test-produce.sh
+    input_mode: none
+    scope_kind: project-wide
+    project_target: ""
+    convert: scripts/test-to-sarif.sh
+    crash_guard: true
+    exempt_from_scope_filter: true
+    category: mechanism
+    gate_type: test
 content:
   ruleset:
     version: 1.0.0
@@ -40,3 +52,8 @@ content:
         risk_class: correctness
         category: toolchain
         justification: Canonical Bash verifier failures normalized to SARIF.
+      - id: bash-documentation-semantics-test
+        engine: bash-documentation-semantics-test
+        risk_class: correctness
+        category: toolchain
+        justification: Documentation-semantics integration verifier failures normalized to SARIF when that consumer surface is present.
