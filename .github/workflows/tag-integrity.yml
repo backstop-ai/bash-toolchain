@@ -1,11 +1,13 @@
 name: Publish immutable Bash pack
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       release_tag:
         description: Immutable Bash pack tag to create after green prepublication acceptance
-        required: true
+        required: false
         default: v0.1.1
 
 permissions:
@@ -25,13 +27,15 @@ jobs:
           fetch-depth: 0
           ref: main
 
-      - name: Assert requested tag and manifest version
+      - name: Derive release tag from the manifest
         env:
-          PUSHED_TAG: ${{ inputs.release_tag }}
+          REQUESTED_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
-          [[ "$PUSHED_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          [[ "$PUSHED_TAG" == "v$(sed -n 's/^version: "\(.*\)"/\1/p' pack.yml)" ]]
+          RELEASE_TAG="v$(sed -n 's/^version: "\(.*\)"/\1/p' pack.yml)"
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ -z "$REQUESTED_TAG" || "$REQUESTED_TAG" == "$RELEASE_TAG" ]]
+          printf 'RELEASE_TAG=%s\n' "$RELEASE_TAG" >> "$GITHUB_ENV"
 
       - name: Check out the accepted Core consumer
         run: git clone --quiet https://github.com/backstop-ai/backstop-core.git "$RUNNER_TEMP/backstop-core" && git -C "$RUNNER_TEMP/backstop-core" checkout --quiet --detach "$CORE_COMMIT"
@@ -85,8 +89,6 @@ jobs:
         run: ./scripts/release-acceptance.sh local-candidate
 
       - name: Create the immutable tag only after prepublication is green
-        env:
-          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
           git fetch --quiet --tags origin
@@ -109,18 +111,14 @@ jobs:
         env:
           BACKSTOP_BIN: ${{ runner.temp }}/bin/backstop
           BACKSTOP_CORE_REPO: ${{ runner.temp }}/backstop-core
-          BACKSTOP_RELEASE_VERSION: ${{ inputs.release_tag }}
-        run: ./scripts/release-acceptance.sh remote-release
+        run: BACKSTOP_RELEASE_VERSION="$RELEASE_TAG" ./scripts/release-acceptance.sh remote-release
 
       - name: Create the release record only after remote acceptance is green
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
         run: gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" --verify-tag --generate-notes
 
       - name: Materialize postpublication lock reconciliation for reviewed follow-up
-        env:
-          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           mkdir -p "$RUNNER_TEMP/lock-reconciliation"
           printf 'project: bash-toolchain\npacks: {}\n' > "$RUNNER_TEMP/lock-reconciliation/backstop.yml"
