@@ -1,6 +1,7 @@
 accept|scripts/tests/example.sh
 accept|scripts/tests/nested/example.sh
 accept|scripts/verify-public-product-model.sh
+accept|scripts/verify-documentation-semantics-integration.sh
 reject|scripts/example.sh
 reject|verify-public-product-model.sh
 reject|scripts/verify-other.sh

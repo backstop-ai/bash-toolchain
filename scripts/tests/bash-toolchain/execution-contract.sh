@@ -44,6 +44,47 @@ TestBashToolchainCanonicalVerifierSingleExecutionAndSARIF() {
   assert_valid_sarif_count "$sarif" 0 || fail 'passing command did not yield empty valid SARIF'
 }
 
+TestBashToolchainOptionalDocumentationVerifierContract() {
+  local producer="$repo_root/scripts/test-produce.sh"
+  local converter="$repo_root/scripts/test-to-sarif.sh"
+  [[ -f "$producer" ]] || { fail 'test producer is absent'; return; }
+  local work count output sarif status
+  work=$(mktemp -d)
+  count="$work/count"
+  output="$work/output"
+  sarif="$work/result.sarif"
+  (
+    cd "$repo_root/testdata/execution/pass"
+    DOCUMENTATION_INVOCATION_COUNT_FILE="$count" bash "$producer" scripts/verify-documentation-semantics-integration.sh
+  ) >"$output" 2>&1
+  status=$?
+  [[ $status -eq 0 ]] || fail "present documentation verifier exited $status"
+  [[ $(cat "$count" 2>/dev/null) == 1 ]] || fail 'present documentation verifier was not invoked exactly once'
+  grep -q 'documentation-verifier stdout' "$output" || fail 'documentation verifier output was not preserved'
+  bash "$converter" <"$output" >"$sarif" || fail 'converter rejected passing documentation verifier output'
+  assert_valid_sarif_count "$sarif" 0 || fail 'passing documentation verifier did not yield empty valid SARIF'
+
+  (
+    cd "$work"
+    bash "$producer" scripts/verify-documentation-semantics-integration.sh
+  ) >"$output" 2>&1
+  status=$?
+  [[ $status -eq 0 ]] || fail "absent optional documentation verifier exited $status"
+  grep -Fxq 'BACKSTOP_BASH_TEST_EXIT_STATUS=0' "$output" || fail 'absent optional documentation verifier did not emit a passing status record'
+  grep -Fq 'optional verifier absent:' "$output" || fail 'absent optional documentation verifier did not emit a skip receipt'
+
+  (
+    cd "$repo_root/testdata/execution/fail"
+    bash "$producer" scripts/verify-documentation-semantics-integration.sh
+  ) >"$output" 2>&1
+  status=$?
+  [[ $status -eq 9 ]] || fail "failing documentation verifier status was $status instead of 9"
+  grep -Fxq 'BACKSTOP_BASH_TEST_EXIT_STATUS=9' "$output" || fail 'failing documentation verifier lost its exit-status record'
+  grep -Fq 'documentation semantics deliberate failure' "$output" || fail 'failing documentation verifier lost its diagnostic'
+  bash "$converter" <"$output" >"$sarif" || fail 'converter rejected failing documentation verifier output'
+  assert_valid_sarif_count "$sarif" 1 || fail 'failing documentation verifier did not yield one SARIF result'
+}
+
 TestBashToolchainExecutionFailureMatrixIsLoud() {
   local producer="$repo_root/scripts/test-produce.sh"
   local converter="$repo_root/scripts/test-to-sarif.sh"
@@ -174,6 +215,7 @@ TestBashToolchainConverterNeedsNoWritableTempDirectory() {
 }
 
 TestBashToolchainCanonicalVerifierSingleExecutionAndSARIF
+TestBashToolchainOptionalDocumentationVerifierContract
 TestBashToolchainExecutionFailureMatrixIsLoud
 TestBashToolchainConverterNeedsNoWritableTempDirectory
 

@@ -34,10 +34,12 @@ TestBashToolchainClassificationIsNarrowAndComplete() {
   [[ -f "$manifest" ]] || { fail "pack.yml is absent"; return; }
   assert_contains '"scripts/tests/**/*.sh"' "$manifest"
   assert_contains '"scripts/verify-public-product-model.sh"' "$manifest"
+  assert_contains '"scripts/verify-documentation-semantics-integration.sh"' "$manifest"
+  [[ $(grep -c 'producer: scripts/test-produce.sh' "$manifest") -eq 2 ]] || fail 'both supported verifier engines must use the tested producer'
   local expectation path accepted
   while IFS='|' read -r expectation path; do
     accepted=false
-    if [[ "$path" == scripts/tests/*.sh || "$path" == scripts/tests/**/*.sh || "$path" == scripts/verify-public-product-model.sh ]]; then
+    if [[ "$path" == scripts/tests/*.sh || "$path" == scripts/tests/**/*.sh || "$path" == scripts/verify-public-product-model.sh || "$path" == scripts/verify-documentation-semantics-integration.sh ]]; then
       accepted=true
     fi
     [[ "$accepted" == "$([[ "$expectation" == accept ]] && printf true || printf false)" ]] || fail "classification mismatch for $path"
