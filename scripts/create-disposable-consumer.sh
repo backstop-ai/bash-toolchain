@@ -28,6 +28,10 @@ esac
 }
 function_file=$(cd "$(dirname "$function_file")" && pwd)/$(basename "$function_file")
 staged_pack=$(cd "$staged_pack" && pwd)
+pack_version=$(sed -n 's/^version: "\(.*\)"/\1/p' "$staged_pack/pack.yml")
+[[ "$pack_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+  printf 'bash-toolchain: staged candidate has malformed version\n' >&2; exit 65;
+}
 if [[ -e "$staged_pack/.git" || -e "$staged_pack/.backstop" ]]; then
   printf 'bash-toolchain: staged candidate contains forbidden metadata\n' >&2
   exit 65
@@ -144,7 +148,7 @@ if [[ "$pack_byte_mutation" == true ]]; then
   fi
 fi
 
-"$backstop_bin" pack add "$staged_pack" --version 0.1.0 >/dev/null
+"$backstop_bin" pack add "$staged_pack" --version "$pack_version" >/dev/null
 locked_digest=$(sed -n '/backstop-ai\/bash-toolchain:/,/version:/s/^[[:space:]]*content_hash:[[:space:]]*//p' backstop.lock)
 [[ "$locked_digest" == "$candidate_digest" ]] || { printf 'bash-toolchain: candidate digest mismatch %s\n' "$locked_digest" >&2; exit 65; }
 if find .backstop/packs/backstop-ai/bash-toolchain -type d -name .backstop -print -quit | grep -q .; then
@@ -205,7 +209,7 @@ case "$mutation" in
     esac
     cd "$negative_consumer"
     "$backstop_bin" artifact validate --all >/dev/null
-    "$backstop_bin" pack add "$negative_pack" --version 0.1.0 >/dev/null
+    "$backstop_bin" pack add "$negative_pack" --version "$pack_version" >/dev/null
     negative_digest=$(sed -n '/backstop-ai\/bash-toolchain:/,/version:/s/^[[:space:]]*content_hash:[[:space:]]*//p' backstop.lock)
     [[ -n "$negative_digest" && "$negative_digest" != "$candidate_digest" ]] || { printf 'bash-toolchain: negative digest was absent or unchanged\n' >&2; exit 65; }
     printf 'negative_first_install=true\nnegative_digest=%s\n' "$negative_digest"

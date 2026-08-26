@@ -151,8 +151,31 @@ TestBashToolchainExecutionFailureMatrixIsLoud() {
   fi
 }
 
+TestBashToolchainConverterNeedsNoWritableTempDirectory() {
+  local converter="$repo_root/scripts/test-to-sarif.sh"
+  local work sarif
+  work=$(mktemp -d)
+  sarif="$work/result.sarif"
+
+  printf 'BACKSTOP_BASH_TEST_EXIT_STATUS=0\n' |
+    TMPDIR="$work/absent" bash "$converter" >"$sarif" || {
+      fail 'converter required a writable temporary directory for passing output'
+      return
+    }
+  assert_valid_sarif_count "$sarif" 0 || fail 'temp-free passing conversion did not yield empty valid SARIF'
+
+  printf 'native sandbox failure\nBACKSTOP_BASH_TEST_EXIT_STATUS=7\n' |
+    TMPDIR="$work/absent" bash "$converter" >"$sarif" || {
+      fail 'converter required a writable temporary directory for failing output'
+      return
+    }
+  assert_valid_sarif_count "$sarif" 1 || fail 'temp-free failing conversion did not yield one SARIF result'
+  grep -q 'native sandbox failure' "$sarif" || fail 'temp-free conversion lost the failure diagnostic'
+}
+
 TestBashToolchainCanonicalVerifierSingleExecutionAndSARIF
 TestBashToolchainExecutionFailureMatrixIsLoud
+TestBashToolchainConverterNeedsNoWritableTempDirectory
 
 if (( failures > 0 )); then
   exit 1

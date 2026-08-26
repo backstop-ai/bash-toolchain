@@ -7,6 +7,12 @@ backstop_bin=${BACKSTOP_BIN:-$core_repo/bin/backstop}
 candidate_commit=${BACKSTOP_CANDIDATE_COMMIT:-}
 candidate_tree=${BACKSTOP_CANDIDATE_TREE:-}
 candidate_digest=${BACKSTOP_CANDIDATE_DIGEST:-}
+pack_version=$(sed -n 's/^version: "\(.*\)"/\1/p' "$repo_root/pack.yml")
+[[ "$pack_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+  printf 'bash-toolchain: malformed pack version\n' >&2
+  exit 65
+}
+release_tag="v${pack_version}"
 core_commit=2855ccd1438c455fc2a6842978c15e5cf582ff5b
 core_tree=97a9480b579b8aac1f4fec8d8294c70aee56a232
 required_core_fix=ca9241fd738cf76349e36f0bebfd2c208e8b132e
@@ -61,7 +67,7 @@ install_candidate() {
     if [[ "$source_kind" == remote ]]; then
       "$backstop_bin" pack add "$source" >/dev/null
     else
-      "$backstop_bin" pack add "$source" --version 0.1.0 >/dev/null
+      "$backstop_bin" pack add "$source" --version "$pack_version" >/dev/null
     fi
     local locked source_type source_coordinate git_ref version
     locked=$(sed -n '/backstop-ai\/bash-toolchain:/,/version:/s/^[[:space:]]*content_hash:[[:space:]]*//p' backstop.lock)
@@ -71,7 +77,7 @@ install_candidate() {
     git_ref=$(sed -n '/backstop-ai\/bash-toolchain:/,/version:/s/^[[:space:]]*git_ref:[[:space:]]*//p' backstop.lock)
     version=$(sed -n '/backstop-ai\/bash-toolchain:/,/version:/s/^[[:space:]]*version:[[:space:]]*//p' backstop.lock | tr -d '"')
     if [[ "$source_kind" == remote ]]; then
-      [[ "$source_type" == git && "$source_coordinate" == backstop-ai/bash-toolchain && "$git_ref" == v0.1.0 && "$version" == 0.1.0 ]] || die "remote lock identity was $source_type/$source_coordinate/$git_ref/$version"
+      [[ "$source_type" == git && "$source_coordinate" == backstop-ai/bash-toolchain && "$git_ref" == "$release_tag" && "$version" == "$pack_version" ]] || die "remote lock identity was $source_type/$source_coordinate/$git_ref/$version"
     else
       [[ "$source_type" == local ]] || die "local candidate unexpectedly locked as $source_type"
     fi
@@ -417,11 +423,11 @@ path.write_text(yaml.safe_dump(data,sort_keys=False))
 PY
   cp "$fixture/pack/pack.yml" "$fixture/consumer/pack.yml"
   if [[ "$mutation" == absent-pack ]]; then
-    printf 'project: incomplete-bash-consumer\npacks:\n  backstop-ai/bash-toolchain: 0.1.0\n' > "$fixture/consumer/backstop.yml"
+    printf 'project: incomplete-bash-consumer\npacks:\n  backstop-ai/bash-toolchain: %s\n' "$pack_version" > "$fixture/consumer/backstop.yml"
   fi
   if [[ "$mutation" != absent-pack ]]; then
     set +e
-    (cd "$fixture/consumer"; "$backstop_bin" pack add "$fixture/pack" --version 0.1.0) >"$fixture/add.out" 2>&1
+    (cd "$fixture/consumer"; "$backstop_bin" pack add "$fixture/pack" --version "$pack_version") >"$fixture/add.out" 2>&1
     status=$?
     set -e
     if (( status != 0 )); then
@@ -468,7 +474,7 @@ compute_candidate_digest() (
   fixture=$(mktemp -d /tmp/backstop-candidate-digest.XXXXXX)
   trap 'rm -rf -- "$fixture"' EXIT HUP INT TERM
   printf 'project: candidate-digest\npacks: {}\n' > "$fixture/backstop.yml"
-  (cd "$fixture"; "$backstop_bin" pack add "$staged_pack" --version 0.1.0 >/dev/null)
+  (cd "$fixture"; "$backstop_bin" pack add "$staged_pack" --version "$pack_version" >/dev/null)
   digest=$(sed -n '/backstop-ai\/bash-toolchain:/,/version:/s/^[[:space:]]*content_hash:[[:space:]]*//p' "$fixture/backstop.lock")
   [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || die 'Backstop did not generate a candidate content digest'
   printf 'BACKSTOP_CANDIDATE_DIGEST=%s\n' "$digest"
@@ -498,7 +504,7 @@ emit_candidate_identity() {
 }
 
 run_remote_release_lane() (
-  local version=${BACKSTOP_RELEASE_VERSION:-v0.1.0}
+  local version=${BACKSTOP_RELEASE_VERSION:-$release_tag}
   local remote=${BACKSTOP_PACK_REMOTE:-https://github.com/backstop-ai/bash-toolchain.git}
   local coordinate="backstop-ai/bash-toolchain@${version#v}"
   local fixture remote_commit remote_tree installed_remote locked_digest
@@ -525,7 +531,7 @@ run_remote_release_lane() (
   installed_remote="$fixture/install-consumer/.backstop/packs/backstop-ai/bash-toolchain"
   [[ -f "$installed_remote/pack.yml" ]] || die 'fresh remote install did not materialize pack.yml'
   grep -Fqx 'name: backstop-ai/bash-toolchain' "$installed_remote/pack.yml" || die 'fresh remote install has wrong pack name'
-  grep -Fqx 'version: "0.1.0"' "$installed_remote/pack.yml" || die 'fresh remote install has wrong pack version'
+  grep -Fqx "version: \"$pack_version\"" "$installed_remote/pack.yml" || die 'fresh remote install has wrong pack version'
   locked_digest=$(sed -n '/backstop-ai\/bash-toolchain:/,/version:/s/^[[:space:]]*content_hash:[[:space:]]*//p' "$fixture/install-consumer/backstop.lock")
   [[ "$locked_digest" == "$candidate_digest" ]] || die 'fresh remote install digest differs from accepted digest'
 

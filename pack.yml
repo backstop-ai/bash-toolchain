@@ -1,5 +1,5 @@
 name: backstop-ai/bash-toolchain
-version: "0.1.0"
+version: "0.1.1"
 language: bash
 archetype: enforcement
 description: >
