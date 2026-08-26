@@ -1,0 +1,9 @@
+project: bash-toolchain
+packs: {}
+enforcement:
+    policy:
+        artifact_validation:
+            level: block
+        pack_engines:
+            applies-to: all-code
+            level: block

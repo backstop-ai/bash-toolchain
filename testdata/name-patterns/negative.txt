@@ -1,0 +1,23 @@
+alpha
+alpha()
+alpha_call arg
+# alpha() {
+echo "alpha() {"
+function
+function broken-name {
+2broken() {
+function alpha ()
+if alpha; then
+echo "alpha() {"
+printf '%s' 'function alpha {'
+# }; hidden_comment() {
+echo "}; hidden_string() {"
+printf '%s' '}; hidden_single() {'
+first|first(){ echo "}; hidden_string() {"; }
+first|first(){ printf '%s' '}; hidden_single() {'; }
+first|first(){ :; }; # }; hidden_comment() {
+first,second|first(){ printf ok; }; second(){ echo "}; hidden_third() {"; }
+first|first(){ echo "}; hidden_string() { :; }"; }
+first|first(){ printf '%s' '}; hidden_single() { :; }'; }
+first|first(){ :; }; # }; hidden_comment() { :; }
+first,second|first(){ printf ok; }; second(){ echo "}; hidden_third() { :; }"; }

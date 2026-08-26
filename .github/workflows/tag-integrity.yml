@@ -1,0 +1,134 @@
+name: Publish immutable Bash pack
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Immutable Bash pack tag to create after green prepublication acceptance
+        required: true
+        default: v0.1.0
+
+permissions:
+  contents: write
+
+env:
+  BACKSTOP_VERSION: 0.3.0
+  CORE_COMMIT: 24fc1c8a85f6ead7d2d5a08424fc984636b5938b
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Assert requested tag and manifest version
+        env:
+          PUSHED_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          [[ "$PUSHED_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$PUSHED_TAG" == "v$(sed -n 's/^version: "\(.*\)"/\1/p' pack.yml)" ]]
+
+      - name: Check out the accepted Core consumer
+        run: git clone --quiet https://github.com/backstop-ai/backstop-core.git "$RUNNER_TEMP/backstop-core" && git -C "$RUNNER_TEMP/backstop-core" checkout --quiet --detach "$CORE_COMMIT"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ runner.temp }}/backstop-core/go.mod
+
+      - name: Install released Backstop and required tools
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/backstop-release" "$RUNNER_TEMP/bin"
+          gh release download "v${BACKSTOP_VERSION}" --repo backstop-ai/backstop-core \
+            --pattern "backstop_${BACKSTOP_VERSION}_linux_amd64.tar.gz" \
+            --pattern "backstop_${BACKSTOP_VERSION}_checksums.txt" \
+            --dir "$RUNNER_TEMP/backstop-release"
+          cd "$RUNNER_TEMP/backstop-release"
+          grep " backstop_${BACKSTOP_VERSION}_linux_amd64.tar.gz$" "backstop_${BACKSTOP_VERSION}_checksums.txt" | sha256sum -c -
+          tar -xzf "backstop_${BACKSTOP_VERSION}_linux_amd64.tar.gz" -C "$RUNNER_TEMP/bin"
+          observed_commit=$("$RUNNER_TEMP/bin/backstop" version | sed -n 's/^commit: //p')
+          [[ "$observed_commit" == "$CORE_COMMIT" ]]
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "$(go env GOPATH)/bin" v2.6.0
+          go install github.com/fe3dback/go-arch-lint@v1.16.0
+          pipx install semgrep==1.156.0
+          curl -sSfL "https://github.com/ast-grep/ast-grep/releases/download/0.43.0/app-x86_64-unknown-linux-gnu.zip" -o "$RUNNER_TEMP/ast-grep.zip"
+          unzip -o -q "$RUNNER_TEMP/ast-grep.zip" -d "$HOME/.local/bin"
+          python3 -m pip install PyYAML
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Materialize Core packs
+        run: (cd "$RUNNER_TEMP/backstop-core" && "$RUNNER_TEMP/bin/backstop" pack install)
+
+      - name: Validate and identify the exact committed candidate
+        env:
+          BACKSTOP_BIN: ${{ runner.temp }}/bin/backstop
+          BACKSTOP_CORE_REPO: ${{ runner.temp }}/backstop-core
+        run: |
+          test ! -e backstop.lock
+          grep -Fxq 'packs: {}' backstop.yml
+          "$RUNNER_TEMP/bin/backstop" pack test .
+          ./scripts/release-acceptance.sh candidate-identity | tee "$RUNNER_TEMP/candidate.env"
+          grep -E '^BACKSTOP_CANDIDATE_(COMMIT|TREE|DIGEST)=' "$RUNNER_TEMP/candidate.env" >> "$GITHUB_ENV"
+
+      - name: Run green prepublication acceptance
+        env:
+          BACKSTOP_BIN: ${{ runner.temp }}/bin/backstop
+          BACKSTOP_CORE_REPO: ${{ runner.temp }}/backstop-core
+        run: ./scripts/release-acceptance.sh local-candidate
+
+      - name: Create the immutable tag only after prepublication is green
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          git fetch --quiet --tags origin
+          if git rev-parse --verify --quiet "refs/tags/$RELEASE_TAG" >/dev/null; then
+            existing=$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")
+            [[ "$existing" == "$BACKSTOP_CANDIDATE_COMMIT" ]]
+          else
+            git tag "$RELEASE_TAG" "$BACKSTOP_CANDIDATE_COMMIT"
+            git push origin "refs/tags/$RELEASE_TAG"
+          fi
+          for attempt in 1 2 3 4 5; do
+            git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null && break
+            [[ "$attempt" == 5 ]] && exit 1
+            sleep 2
+          done
+
+      # A tag pushed with GITHUB_TOKEN does not start another workflow. Keep the
+      # post-tag proof in this already-green job instead of waiting for recursion.
+      - name: Verify fresh remote coordinate install and rerun complete acceptance
+        env:
+          BACKSTOP_BIN: ${{ runner.temp }}/bin/backstop
+          BACKSTOP_CORE_REPO: ${{ runner.temp }}/backstop-core
+          BACKSTOP_RELEASE_VERSION: ${{ inputs.release_tag }}
+        run: ./scripts/release-acceptance.sh remote-release
+
+      - name: Create the release record only after remote acceptance is green
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" --verify-tag --generate-notes
+
+      - name: Materialize postpublication lock reconciliation for reviewed follow-up
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/lock-reconciliation"
+          printf 'project: bash-toolchain\npacks: {}\n' > "$RUNNER_TEMP/lock-reconciliation/backstop.yml"
+          (cd "$RUNNER_TEMP/lock-reconciliation" && "$RUNNER_TEMP/bin/backstop" pack add "backstop-ai/bash-toolchain@${RELEASE_TAG#v}")
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: postpublication-lock-reconciliation
+          path: |
+            ${{ runner.temp }}/lock-reconciliation/backstop.yml
+            ${{ runner.temp }}/lock-reconciliation/backstop.lock

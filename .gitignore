@@ -1,0 +1,4 @@
+.backstop/
+*.tmp
+*.log
+.backstop/packs/

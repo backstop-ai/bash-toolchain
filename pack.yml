@@ -1,0 +1,42 @@
+name: backstop-ai/bash-toolchain
+version: "0.1.0"
+language: bash
+archetype: enforcement
+description: >
+  Bash mechanism pack for static test-function discovery and exactly-once
+  execution of a repository's canonical verifier.
+classification:
+  test:
+    - "scripts/tests/**/*.sh"
+    - "scripts/verify-public-product-model.sh"
+test_name_patterns:
+  - "^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[[:blank:]]*\\([[:blank:]]*\\)[[:blank:]]*\\{"
+  - "^[[:space:]]*function[[:blank:]]+([A-Za-z_][A-Za-z0-9_]*)[[:blank:]]*\\([[:blank:]]*\\)[[:blank:]]*\\{"
+  - "^[[:space:]]*function[[:blank:]]+([A-Za-z_][A-Za-z0-9_]*)[[:blank:]]*\\{"
+  - "^[[:space:]]*(?:[A-Za-z_][A-Za-z0-9_]*[[:blank:]]*\\([[:blank:]]*\\)|function[[:blank:]]+[A-Za-z_][A-Za-z0-9_]*(?:[[:blank:]]*\\([[:blank:]]*\\))?)[[:blank:]]*\\{(?:[^\"'#}]|\"[^\"]*\"|'[^']*')*}[[:blank:]]*;[[:blank:]]*([A-Za-z_][A-Za-z0-9_]*)[[:blank:]]*\\([[:blank:]]*\\)[[:blank:]]*\\{"
+  - "^[[:space:]]*(?:[A-Za-z_][A-Za-z0-9_]*[[:blank:]]*\\([[:blank:]]*\\)|function[[:blank:]]+[A-Za-z_][A-Za-z0-9_]*(?:[[:blank:]]*\\([[:blank:]]*\\))?)[[:blank:]]*\\{(?:[^\"'#}]|\"[^\"]*\"|'[^']*')*}[[:blank:]]*;[[:blank:]]*function[[:blank:]]+([A-Za-z_][A-Za-z0-9_]*)[[:blank:]]*\\([[:blank:]]*\\)[[:blank:]]*\\{"
+  - "^[[:space:]]*(?:[A-Za-z_][A-Za-z0-9_]*[[:blank:]]*\\([[:blank:]]*\\)|function[[:blank:]]+[A-Za-z_][A-Za-z0-9_]*(?:[[:blank:]]*\\([[:blank:]]*\\))?)[[:blank:]]*\\{(?:[^\"'#}]|\"[^\"]*\"|'[^']*')*}[[:blank:]]*;[[:blank:]]*function[[:blank:]]+([A-Za-z_][A-Za-z0-9_]*)[[:blank:]]*\\{"
+  - "^[[:space:]]*(?:[A-Za-z_][A-Za-z0-9_]*[[:blank:]]*\\([[:blank:]]*\\)|function[[:blank:]]+[A-Za-z_][A-Za-z0-9_]*(?:[[:blank:]]*\\([[:blank:]]*\\))?)[[:blank:]]*\\{(?:[^\"'#}]|\"[^\"]*\"|'[^']*')*}[[:blank:]]*;[[:blank:]]*(?:[A-Za-z_][A-Za-z0-9_]*[[:blank:]]*\\([[:blank:]]*\\)|function[[:blank:]]+[A-Za-z_][A-Za-z0-9_]*(?:[[:blank:]]*\\([[:blank:]]*\\))?)[[:blank:]]*\\{(?:[^\"'#}]|\"[^\"]*\"|'[^']*')*}[[:blank:]]*;[[:blank:]]*([A-Za-z_][A-Za-z0-9_]*)[[:blank:]]*\\([[:blank:]]*\\)[[:blank:]]*\\{"
+  - "^[[:space:]]*(?:[A-Za-z_][A-Za-z0-9_]*[[:blank:]]*\\([[:blank:]]*\\)|function[[:blank:]]+[A-Za-z_][A-Za-z0-9_]*(?:[[:blank:]]*\\([[:blank:]]*\\))?)[[:blank:]]*\\{(?:[^\"'#}]|\"[^\"]*\"|'[^']*')*}[[:blank:]]*;[[:blank:]]*(?:[A-Za-z_][A-Za-z0-9_]*[[:blank:]]*\\([[:blank:]]*\\)|function[[:blank:]]+[A-Za-z_][A-Za-z0-9_]*(?:[[:blank:]]*\\([[:blank:]]*\\))?)[[:blank:]]*\\{(?:[^\"'#}]|\"[^\"]*\"|'[^']*')*}[[:blank:]]*;[[:blank:]]*function[[:blank:]]+([A-Za-z_][A-Za-z0-9_]*)[[:blank:]]*\\([[:blank:]]*\\)[[:blank:]]*\\{"
+  - "^[[:space:]]*(?:[A-Za-z_][A-Za-z0-9_]*[[:blank:]]*\\([[:blank:]]*\\)|function[[:blank:]]+[A-Za-z_][A-Za-z0-9_]*(?:[[:blank:]]*\\([[:blank:]]*\\))?)[[:blank:]]*\\{(?:[^\"'#}]|\"[^\"]*\"|'[^']*')*}[[:blank:]]*;[[:blank:]]*(?:[A-Za-z_][A-Za-z0-9_]*[[:blank:]]*\\([[:blank:]]*\\)|function[[:blank:]]+[A-Za-z_][A-Za-z0-9_]*(?:[[:blank:]]*\\([[:blank:]]*\\))?)[[:blank:]]*\\{(?:[^\"'#}]|\"[^\"]*\"|'[^']*')*}[[:blank:]]*;[[:blank:]]*function[[:blank:]]+([A-Za-z_][A-Za-z0-9_]*)[[:blank:]]*\\{"
+engines:
+  bash-test:
+    command: bash scripts/verify-public-product-model.sh
+    producer: scripts/test-produce.sh
+    input_mode: none
+    scope_kind: project-wide
+    project_target: ""
+    convert: scripts/test-to-sarif.sh
+    crash_guard: true
+    exempt_from_scope_filter: true
+    category: mechanism
+    gate_type: test
+content:
+  ruleset:
+    version: 1.0.0
+    rules:
+      - id: bash-test
+        engine: bash-test
+        risk_class: correctness
+        category: toolchain
+        justification: Canonical Bash verifier failures normalized to SARIF.

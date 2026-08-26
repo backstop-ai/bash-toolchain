@@ -1,0 +1,11 @@
+alpha|alpha() {
+spaced_name|  spaced_name ( )   {
+with_digits_2|with_digits_2() {
+declared|function declared {
+declared_parens|function declared_parens() {
+declared_spaced|  function   declared_spaced ( )  {
+first,later_plain|first(){ :; }; later_plain() { :; }
+first,later_function|first(){ :; }; function later_function() { :; }
+first,later_function_no_parens|first(){ :; }; function later_function_no_parens { :; }
+first,second,third|first(){ :; }; second(){ :; }; third() { :; }
+verify_claim_type_evidence_matrix_positive,continued|verify_claim_type_evidence_matrix_positive(){ validate "$evidence"; }; continued(){

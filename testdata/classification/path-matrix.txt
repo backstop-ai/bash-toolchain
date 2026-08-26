@@ -1,0 +1,8 @@
+accept|scripts/tests/example.sh
+accept|scripts/tests/nested/example.sh
+accept|scripts/verify-public-product-model.sh
+reject|scripts/example.sh
+reject|verify-public-product-model.sh
+reject|scripts/verify-other.sh
+reject|test/example.sh
+reject|scripts/tests/example.bash

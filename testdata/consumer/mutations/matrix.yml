@@ -1,0 +1,7 @@
+mutations:
+  - absent-pack
+  - missing-classification-test
+  - missing-suite-path
+  - missing-verifier-path
+  - missing-test-name-patterns
+  - missing-test-engine
